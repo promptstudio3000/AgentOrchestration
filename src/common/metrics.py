@@ -1,5 +1,6 @@
 """Metrics collection and reporting."""
 
+import math
 import time
 from collections import defaultdict
 from typing import Dict, List
@@ -19,6 +20,8 @@ class MetricsCollector:
             self._counters[metric] += value
 
     def gauge(self, metric: str, value: float) -> None:
+        if not math.isfinite(value):
+            raise ValueError(f"Gauge '{metric}' must be a finite number, got {value}")
         with self._lock:
             self._gauges[metric] = value
 
@@ -34,18 +37,21 @@ class MetricsCollector:
         with self._lock:
             if metric in self._timers:
                 duration = time.time() - self._timers.pop(metric)
-                self.observe(metric, duration)
+                self._histograms[metric].append(duration)
                 return duration
         return 0.0
 
     def snapshot(self) -> Dict:
         with self._lock:
-            return {
-                "counters": dict(self._counters),
-                "gauges": dict(self._gauges),
-                "histograms": {k: {"count": len(v), "sum": sum(v), "avg": sum(v) / len(v) if v else 0}
-                               for k, v in self._histograms.items()},
-            }
+            counters = dict(self._counters)
+            gauges = dict(self._gauges)
+            histograms = {k: list(v) for k, v in self._histograms.items()}
+        return {
+            "counters": counters,
+            "gauges": gauges,
+            "histograms": {k: {"count": len(v), "sum": sum(v), "avg": sum(v) / len(v) if v else 0}
+                           for k, v in histograms.items()},
+        }
 
 
 metrics = MetricsCollector()

@@ -34,7 +34,11 @@ class AgentSandbox:
         return False
 
     def get_path(self, agent_id: str) -> Optional[Path]:
-        return self._sandboxes.get(agent_id)
+        path = self._sandboxes.get(agent_id)
+        if path is not None and not path.exists():
+            del self._sandboxes[agent_id]
+            return None
+        return path
 
     def apply_limits(self, agent_id: str, limits: ResourceLimits) -> None:
         try:

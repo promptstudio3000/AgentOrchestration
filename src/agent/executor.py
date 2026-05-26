@@ -7,8 +7,9 @@ from uuid import uuid4
 
 
 class AgentExecutor:
-    def __init__(self, max_concurrent: int = 5):
+    def __init__(self, max_concurrent: int = 5, max_results: int = 1000):
         self.max_concurrent = max_concurrent
+        self.max_results = max_results
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self._active_tasks: Dict[str, asyncio.Task] = {}
         self._results: Dict[str, Any] = {}
@@ -27,7 +28,13 @@ class AgentExecutor:
                 self._results[execution_id] = {"error": str(e)}
             finally:
                 self._active_tasks.pop(execution_id, None)
+            self._enforce_results_bound()
         return execution_id
+
+    def _enforce_results_bound(self) -> None:
+        while len(self._results) > self.max_results:
+            oldest = next(iter(self._results))
+            del self._results[oldest]
 
     async def _run_execution(self, exec_id: str, agent_id: str, task: Dict, handler: Callable) -> Any:
         start = time.time()
